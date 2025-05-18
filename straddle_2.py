@@ -2,8 +2,9 @@ import time
 from datetime import datetime
 import pytz
 from fyers_apiv3 import fyersModel
-from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type
 import requests
+from retry import retry
+import ast
 
 redirect_uri= "https://www.google.com"  ## redircet_uri you entered while creating APP.
 client_id = "6B4ZMQL1YX-100"                       ## Client_id here refers to APP_ID of the created app
@@ -35,14 +36,14 @@ fyerModel object takes following values as arguments
 # === Configuration ===
 CLIENT_ID = client_id
 ACCESS_TOKEN = access_token
-MTM_SL1 = -2500
-MTM_SL2 = -5100
+MTM_SL1 = -2400
+MTM_SL2 = -5000
 ENTRY_TIME = "09:25"
-EXIT_TIME = "15:05"
+EXIT_TIME = "15:00"
 RECHECK_INTERVAL = 2  # seconds
 POSITION_SIZE = 75  # Number of lots
 UNDERLYING = "NSE:NIFTY50-INDEX"
-EXPIRY_DATE = 25508 
+EXPIRY_DATE = 25522
 RETRY_LIMIT = 3
 
 profit_lock = 0
@@ -63,21 +64,21 @@ def get_nifty_spot():
     return response['d'][0]['v']['lp']
 
 def get_atm_strike():
-    # spot_price = get_nifty_spot()
-    # atm_strike = round(spot_price / 50) * 50
-    # return atm_strike
     quote = fyers.quotes({"symbols": UNDERLYING})
     ltp = quote['d'][0]['v']['lp']
     atm_strike = round(ltp / 50) * 50
     return atm_strike
 
+def get_quote(symbols):
+    prices = []
+    if isinstance(symbols, str):
+        symbols = eval(symbols)
+    result = ','.join(symbols)
+    response = fyers.quotes({"symbols":result})
+    for item in response['d']:
+        prices.append(item['v']['lp'])
+    return prices
 # === UTILITY ===
-
-@retry(
-    stop=stop_after_attempt(3),
-    wait=wait_fixed(2),
-    retry=retry_if_exception_type((requests.exceptions.RequestException, Exception))
-)
 
 def get_current_week_expiry():
     today = datetime.date.today()
@@ -97,7 +98,7 @@ def get_option_symbols(atm_strike):
     expiry = EXPIRY_DATE
     ce_symbol = f"NSE:NIFTY{expiry}{atm_strike}CE"
     pe_symbol = f"NSE:NIFTY{expiry}{atm_strike}PE"
-    return ce_symbol, pe_symbol
+    return ce_symbol,pe_symbol
 
 def place_order(symbol, qty, side):
     print("symbol:",symbol)
@@ -120,14 +121,18 @@ def place_order(symbol, qty, side):
     return response
 
 def place_straddle(atm_strike):
-    ce_symbol, pe_symbol = get_option_symbols(atm_strike)
+    ce_symbol,pe_symbol = get_option_symbols(atm_strike)
     place_order(ce_symbol, POSITION_SIZE, -1)  # Sell CE
     place_order(pe_symbol, POSITION_SIZE, -1)  # Sell PE
+    return [ce_symbol,pe_symbol]
 
+# Retry on exceptions like requests.ConnectionError, requests.Timeout, etc.
+@retry(tries=3, delay=2, backoff=2, exceptions=(requests.exceptions.RequestException,))
 def get_positions():
     response = fyers.positions()
-    if not isinstance(response, dict) or response.get("code") != 200:
-        raise Exception(f"Failed to get positions: {response}")
+    
+    if response.get("code") != 200:
+        raise requests.exceptions.RequestException(f"Failed with status code: {response.get("code")}")
     return response['netPositions']
 
 def calculate_mtm():
@@ -158,25 +163,41 @@ def get_profit_lock(mtm):
 def run_strategy():
     ist = pytz.timezone('Asia/Kolkata')
     straddle_entered = True
-    reentry_done = True
-    #current_sl = MTM_SL1
+    reentry_done = False
+    current_positions = ""
+
     if not reentry_done:
         current_sl = MTM_SL1
     else: 
         current_sl = MTM_SL2
 
     print("current_sl::",current_sl)
+
+    with open('straddle_data.txt', 'r') as file:
+        current_positions = file.read().strip()
+
     while True:
         now = datetime.now(ist)
         current_time = now.strftime("%H:%M")
-        if current_time >= ENTRY_TIME and not straddle_entered:
-        # if not straddle_entered:
+        #if current_time>= ENTRY_TIME and not straddle_entered:
+        if  not straddle_entered:
             atm_strike = get_atm_strike()
-            place_straddle(atm_strike)
+            current_positions = place_straddle(atm_strike)
+            print("current_positions::",current_positions)
+            with open('straddle_data.txt', 'w') as file:
+                #file.write("current_positions: {}\n".format(current_positions))
+                file.write(format(current_positions))
+
             straddle_entered = True
-            print(f"First straddle entered at {current_time}")
 
         if straddle_entered:
+            
+            print(f"current_positions**: {current_positions}")
+            ce_price,pe_price = get_quote(current_positions)
+
+            print(f"CE**: {ce_price}, PE**: {pe_price}")
+            ratio = max(ce_price / pe_price, pe_price / ce_price) if pe_price and ce_price else 1
+            print("ratio::",ratio)
             mtm = calculate_mtm()
             print(f"Current MTM: ₹{mtm}")
             print(f"MAX MTM: ₹{max_mtm}")
@@ -185,13 +206,17 @@ def run_strategy():
 
             get_profit_lock(mtm)
 
-            if mtm < profit_lock and profit_lock > 0:
+            if (mtm < profit_lock and profit_lock > 0):
                 print(f"MTM dropped below profit lock ({mtm} < {profit_lock}). Exiting positions.")
                 print("close position")
                 close_all_positions()
                 break
+            
+            if (mtm <= current_sl):
+                close_all_positions()
+                break
 
-            if mtm <= current_sl:
+            if ratio>=3.3:
                 close_all_positions()
                 print(f"MTM SL of ₹{current_sl} hit at {current_time}. Positions closed.")
 

@@ -18,6 +18,7 @@ response = appSession.generate_token()
 ## There can be two cases over here you can successfully get the acccessToken over the request or you might get some error over here. so to avoid that have this in try except block
 try: 
     access_token = response["access_token"]
+    print("access_token::",access_token)
 except Exception as e:
     print(e,response)  ## This will help you in debugging then and there itself like what was the error and also you would be able to see the value you got in response variable. instead of getting key_error for unsuccessfull response.
 

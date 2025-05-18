@@ -35,14 +35,14 @@ fyerModel object takes following values as arguments
 # === Configuration ===
 CLIENT_ID = client_id
 ACCESS_TOKEN = access_token
-MTM_SL1 = -2500
-MTM_SL2 = -5100
+MTM_SL1 = -2400
+MTM_SL2 = -5000
 ENTRY_TIME = "09:25"
-EXIT_TIME = "15:05"
+EXIT_TIME = "15:00"
 RECHECK_INTERVAL = 2  # seconds
 POSITION_SIZE = 75  # Number of lots
 UNDERLYING = "NSE:NIFTY50-INDEX"
-EXPIRY_DATE = 25508 
+EXPIRY_DATE = 25522 
 RETRY_LIMIT = 3
 
 profit_lock = 0
@@ -91,7 +91,7 @@ def get_option_symbols(atm_strike):
     expiry = EXPIRY_DATE
     ce_symbol = f"NSE:NIFTY{expiry}{atm_strike}CE"
     pe_symbol = f"NSE:NIFTY{expiry}{atm_strike}PE"
-    return ce_symbol, pe_symbol
+    return ce_symbol,pe_symbol
 
 def place_order(symbol, qty, side):
     print("symbol:",symbol)
@@ -114,7 +114,7 @@ def place_order(symbol, qty, side):
     return response
 
 def place_straddle(atm_strike):
-    ce_symbol, pe_symbol = get_option_symbols(atm_strike)
+    ce_symbol,pe_symbol = get_option_symbols(atm_strike)
     place_order(ce_symbol, POSITION_SIZE, -1)  # Sell CE
     place_order(pe_symbol, POSITION_SIZE, -1)  # Sell PE
 
@@ -166,8 +166,9 @@ def run_strategy():
     while True:
         now = datetime.now(ist)
         current_time = now.strftime("%H:%M")
-        if not straddle_entered:
-        # if not straddle_entered:
+        print("current_time::",current_time)
+        if current_time>= ENTRY_TIME and not straddle_entered:
+        #if not straddle_entered:
             atm_strike = get_atm_strike()
             place_straddle(atm_strike)
             straddle_entered = True
