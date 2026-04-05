@@ -18,8 +18,9 @@ appSession = fyersModel.SessionModel(client_id = client_id, redirect_uri = redir
 # with open('auth_code.txt', 'r') as file:
 #         auth_code = file.read().strip()
 #
-# print("auth_code::",auth_code)
+
 auth_code = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhcHBfaWQiOiI2QjRaTVFMMVlYIiwidXVpZCI6IjRiNDliYzczYTkxMTRjZWE4YmNhNDcxNTEyYzU5NjEzIiwiaXBBZGRyIjoiIiwibm9uY2UiOiIiLCJzY29wZSI6IiIsImRpc3BsYXlfbmFtZSI6IlhWMDI2MTQiLCJvbXMiOiJLMSIsImhzbV9rZXkiOiIyYTRhZTBlN2FhYzM4ZjA2NmFmMTdiNDkzZDVmZjg4OTViYzkxYTVjMDk0NzgyNTRjZmI5Nzk3OSIsImlzRGRwaUVuYWJsZWQiOiJOIiwiaXNNdGZFbmFibGVkIjoiTiIsImF1ZCI6IltcImQ6MVwiLFwiZDoyXCIsXCJ4OjBcIixcIng6MVwiLFwieDoyXCJdIiwiZXhwIjoxNzc1NDM3Mjk5LCJpYXQiOjE3NzU0MDcyOTksImlzcyI6ImFwaS5sb2dpbi5meWVycy5pbiIsIm5iZiI6MTc3NTQwNzI5OSwic3ViIjoiYXV0aF9jb2RlIn0.6CCKIs-YD4WbffmMCWtFmWYc7VUTDGyY6Yw1ZfWZsZs"
+print("auth_code::",auth_code)
 appSession.set_token(auth_code)
 response = appSession.generate_token()
 
